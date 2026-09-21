@@ -195,19 +195,20 @@ async def execute_global_command(
     cabinet_lamp: KasaController,
 ) -> str:
     if global_gesture == GlobalGesture.PRAYER:
-        # Send both commands concurrently.
+        # Toggle: only turn off if both are already on, otherwise turn
+        # everything on.
+        if desk_lamp.is_on and cabinet_lamp.is_on:
+            await asyncio.gather(
+                desk_lamp.turn_off(),
+                cabinet_lamp.turn_off(),
+            )
+            return "BOTH LAMPS OFF"
+
         await asyncio.gather(
             desk_lamp.turn_on(),
             cabinet_lamp.turn_on(),
         )
         return "BOTH LAMPS ON"
-
-    if global_gesture == GlobalGesture.HANG_LOOSE:
-        await asyncio.gather(
-            desk_lamp.turn_off(),
-            cabinet_lamp.turn_off(),
-        )
-        return "BOTH LAMPS OFF"
 
     return "READY"
 
@@ -300,9 +301,6 @@ async def run_camera(
                 for index, landmarks in enumerate(detected_hands):
                     if global_gesture == GlobalGesture.PRAYER:
                         role_label = "PRAYER"
-
-                    elif global_gesture == GlobalGesture.HANG_LOOSE:
-                        role_label = "HANG LOOSE"
 
                     elif index == pointing_hand_index:
                         role_label = "POINTING HAND"
@@ -494,8 +492,7 @@ async def main() -> None:
 
         print()
         print("Controls:")
-        print("Prayer hands                  = both lamps ON")
-        print("Hang loose with either hand   = both lamps OFF")
+        print("Prayer hands                  = toggle both lamps on/off")
         print("Point left + other hand open  = Desk Lamp ON")
         print("Point left + other hand fist  = Desk Lamp OFF")
         print("Point right + other hand open = Cabinet Lamp ON")

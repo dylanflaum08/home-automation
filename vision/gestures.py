@@ -17,7 +17,6 @@ class HandCommand(Enum):
 class GlobalGesture(Enum):
     NONE = "none"
     PRAYER = "prayer"
-    HANG_LOOSE = "hang_loose"
 
 
 def finger_is_extended(landmarks, tip: int, pip: int) -> bool:
@@ -107,88 +106,6 @@ def detect_hand_command(landmarks) -> HandCommand:
     return HandCommand.NONE
 
 
-def thumb_is_extended(landmarks) -> bool:
-    """
-    Detect an extended thumb using distance from the palm.
-
-    This works better than relying only on left/right orientation.
-    """
-
-    wrist = landmarks[0]
-    thumb_tip = landmarks[4]
-    thumb_joint = landmarks[2]
-
-    tip_distance = distance_between_points(thumb_tip, wrist)
-    joint_distance = distance_between_points(thumb_joint, wrist)
-
-    return tip_distance > joint_distance * 1.25
-
-
-def detect_hang_loose(landmarks) -> bool:
-    """
-    Strict shaka / hang-loose detection.
-
-    Requirements:
-    - Thumb and pinky clearly extended
-    - Index, middle, and ring clearly folded
-    - Thumb and pinky separated widely
-    - Gesture must not also look like pointing
-    """
-
-    # Prevent pointing from being classified as hang loose.
-    if detect_point_direction(landmarks) != PointDirection.NONE:
-        return False
-
-    wrist = landmarks[0]
-    thumb_tip = landmarks[4]
-    index_tip = landmarks[8]
-    middle_tip = landmarks[12]
-    ring_tip = landmarks[16]
-    pinky_tip = landmarks[20]
-
-    index_mcp = landmarks[5]
-    middle_mcp = landmarks[9]
-    ring_mcp = landmarks[13]
-    pinky_mcp = landmarks[17]
-
-    thumb_distance = distance_between_points(thumb_tip, wrist)
-    pinky_distance = distance_between_points(pinky_tip, wrist)
-
-    index_distance = distance_between_points(index_tip, wrist)
-    middle_distance = distance_between_points(middle_tip, wrist)
-    ring_distance = distance_between_points(ring_tip, wrist)
-
-    palm_width = distance_between_points(index_mcp, pinky_mcp)
-
-    thumb_extended = thumb_distance > palm_width * 1.35
-    pinky_extended = pinky_distance > palm_width * 1.55
-
-    index_folded = index_distance < palm_width * 1.45
-    middle_folded = middle_distance < palm_width * 1.45
-    ring_folded = ring_distance < palm_width * 1.45
-
-    thumb_pinky_spread = (
-        distance_between_points(thumb_tip, pinky_tip)
-        > palm_width * 2.1
-    )
-
-    # Shaka is usually wider horizontally than vertically.
-    horizontal_span = abs(thumb_tip.x - pinky_tip.x)
-    vertical_span = abs(thumb_tip.y - pinky_tip.y)
-
-    mostly_horizontal = horizontal_span > vertical_span * 1.2
-
-    return (
-        thumb_extended
-        and pinky_extended
-        and index_folded
-        and middle_folded
-        and ring_folded
-        and thumb_pinky_spread
-        and mostly_horizontal
-    )
-
-
 def hand_is_open_for_prayer(landmarks) -> bool:
     """
     Require the four main fingers to be extended for prayer hands.
@@ -259,10 +176,6 @@ def detect_global_gesture(detected_hands) -> GlobalGesture:
     """
     Global gestures have priority over lamp-selection gestures.
     """
-
-    for landmarks in detected_hands:
-        if detect_hang_loose(landmarks):
-            return GlobalGesture.HANG_LOOSE
 
     if (
         len(detected_hands) >= 2

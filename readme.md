@@ -403,7 +403,7 @@ rather than relying on:
 
 Left physical hand
 Right physical hand
-3. Prayer Hands = Both Lamps ON
+3. Prayer Hands = Toggle Both Lamps
 
 When both hands are together in a prayer-like position:
 
@@ -411,27 +411,15 @@ When both hands are together in a prayer-like position:
 
 Result:
 
-Desk Lamp ON
-Cabinet Lamp ON
+If both lamps are currently ON, both turn OFF.
+Otherwise (either lamp is OFF, or both are OFF), both turn ON.
 
 This is a global command.
 
-4. Hang Loose / Shaka = Both Lamps OFF
-
-A hang-loose gesture:
-
-🤙
-
-from either hand should turn both lamps off.
-
-Result:
-
-Desk Lamp OFF
-Cabinet Lamp OFF
-
-This gesture has previously caused false positives, particularly when trying to point.
-
-Therefore the gesture detector needs to be conservative.
+The hang-loose/shaka gesture was removed. It was hard to trigger
+reliably at usable angles and had previously caused false positives,
+particularly when trying to point. Prayer hands now covers both the
+on and off case as a toggle instead.
 
 Gesture Detection Notes
 
@@ -489,7 +477,6 @@ DIRECTIONAL_STABLE_FRAME_REQUIREMENT = 8
 Global gestures such as:
 
 Prayer
-Hang loose
 
 should generally require more stability than directional gestures.
 
@@ -585,8 +572,7 @@ Hand tracking
 Pointing
 Open hand
 Fist
-Prayer
-Hang loose
+Prayer (toggle)
 Desk lamp
 Cabinet lamp
 Stable gesture detection
@@ -850,12 +836,6 @@ not just pointing upward
 Avoid relying solely on:
 
 tip.y < pip.y
-Hang Loose False Positives
-
-The shaka gesture has previously been incorrectly detected during pointing.
-
-The detector should explicitly reject a hand if it is already recognized as a pointing gesture.
-
 Handedness
 
 Do not assume:
@@ -912,8 +892,7 @@ Specifically:
  Open-hand + pointing = ON
  Fist + pointing = OFF
  Correct left/right lamp targeting
- Prayer = both ON
- Hang loose = both OFF
+ Prayer = toggle both on/off
  Prevent false positives
  Require stable gestures
  Test different lighting conditions

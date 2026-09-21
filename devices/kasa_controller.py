@@ -38,6 +38,10 @@ class KasaController:
             protocol=protocol,
         )
 
+    @property
+    def is_on(self) -> bool:
+        return self.plug.is_on
+
     async def connect(self) -> None:
         await self.plug.update()
         print(
