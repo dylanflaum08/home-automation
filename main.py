@@ -50,7 +50,7 @@ DIRECTIONAL_STABLE_FRAME_REQUIREMENT = 8
 # Drawing
 # --------------------------------------------------
 
-def draw_hand(frame, landmarks, label: str) -> None:
+def draw_hand(frame, landmarks, label: str, confidence: float | None = None) -> None:
     height, width, _ = frame.shape
 
     connections = [
@@ -88,12 +88,29 @@ def draw_hand(frame, landmarks, label: str) -> None:
             -1,
         )
 
-    wrist_x, wrist_y = points[0]
+    box_margin = 20
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    box_top_left = (min(xs) - box_margin, min(ys) - box_margin)
+    box_bottom_right = (max(xs) + box_margin, max(ys) + box_margin)
+
+    cv2.rectangle(
+        frame,
+        box_top_left,
+        box_bottom_right,
+        (0, 255, 255),
+        2,
+    )
+
+    label_text = label
+
+    if confidence is not None:
+        label_text = f"{label} ({confidence:.2f})"
 
     cv2.putText(
         frame,
-        label,
-        (wrist_x, max(30, wrist_y - 20)),
+        label_text,
+        (box_top_left[0], max(30, box_top_left[1] - 10)),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
         (0, 255, 255),
@@ -296,10 +313,16 @@ async def run_camera(
                     else:
                         role_label = "HAND"
 
+                    confidence = None
+
+                    if index < len(result.handedness) and result.handedness[index]:
+                        confidence = result.handedness[index][0].score
+
                     draw_hand(
                         frame,
                         landmarks,
                         role_label,
+                        confidence=confidence,
                     )
 
                 if global_gesture != GlobalGesture.NONE:
