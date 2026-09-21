@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 
 import cv2
@@ -6,6 +7,7 @@ import mediapipe as mp
 from mediapipe.tasks.python import vision
 
 from devices.kasa_controller import KasaController
+from vision.camera import open_camera
 from vision.gestures import (
     GlobalGesture,
     HandCommand,
@@ -27,6 +29,11 @@ CABINET_LAMP_IP = "192.168.4.27"
 
 CAMERA_INDEX = 0
 MIRROR_CAMERA = True
+
+# No point trying to open a preview window over a plain SSH session with
+# no X server. Windows always has a display; on Linux, fall back to
+# headless unless DISPLAY is set (e.g. a local desktop session or VNC).
+SHOW_PREVIEW_WINDOW = os.name == "nt" or bool(os.environ.get("DISPLAY"))
 
 STABLE_FRAME_REQUIREMENT = 8
 NEUTRAL_FRAME_REQUIREMENT = 8
@@ -202,12 +209,7 @@ async def run_camera(
         min_tracking_confidence=0.6,
     )
 
-    camera = cv2.VideoCapture(CAMERA_INDEX)
-
-    if not camera.isOpened():
-        raise RuntimeError(
-            f"Could not open camera index {CAMERA_INDEX}"
-        )
+    camera = open_camera(CAMERA_INDEX)
 
     current_candidate = None
     candidate_frames = 0
@@ -422,13 +424,14 @@ async def run_camera(
                         2,
                     )
 
-                cv2.imshow(
-                    "Gesture Home Automation",
-                    frame,
-                )
+                if SHOW_PREVIEW_WINDOW:
+                    cv2.imshow(
+                        "Gesture Home Automation",
+                        frame,
+                    )
 
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        break
 
                 await asyncio.sleep(0)
 
@@ -461,7 +464,11 @@ async def main() -> None:
         print("Point right + other hand open = Cabinet Lamp ON")
         print("Point right + other hand fist = Cabinet Lamp OFF")
         print()
-        print("Press Q in the camera window to quit.")
+
+        if SHOW_PREVIEW_WINDOW:
+            print("Press Q in the camera window to quit.")
+        else:
+            print("No display detected, running headless. Press Ctrl+C to quit.")
 
         await run_camera(
             desk_lamp=desk_lamp,
