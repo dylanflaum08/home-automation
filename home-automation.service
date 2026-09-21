@@ -1,0 +1,17 @@
+[Unit]
+Description=Gesture-controlled home automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dylanflaum
+WorkingDirectory=/home/dylanflaum/home-automation
+ExecStart=/home/dylanflaum/home-automation-venv/bin/python main.py
+Environment=DEBUG_FRAME_PATH=/home/dylanflaum/debug.jpg
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
