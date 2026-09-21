@@ -35,6 +35,11 @@ MIRROR_CAMERA = True
 # headless unless DISPLAY is set (e.g. a local desktop session or VNC).
 SHOW_PREVIEW_WINDOW = os.name == "nt" or bool(os.environ.get("DISPLAY"))
 
+# When running headless, set DEBUG_FRAME_PATH to periodically write the
+# annotated frame to disk so it can be pulled and inspected remotely.
+DEBUG_FRAME_PATH = os.environ.get("DEBUG_FRAME_PATH")
+DEBUG_FRAME_INTERVAL = 10
+
 STABLE_FRAME_REQUIREMENT = 8
 NEUTRAL_FRAME_REQUIREMENT = 8
 GLOBAL_STABLE_FRAME_REQUIREMENT = 15
@@ -218,6 +223,7 @@ async def run_camera(
 
     status_message = "READY"
     last_timestamp_ms = 0
+    frame_count = 0
 
     try:
         with vision.HandLandmarker.create_from_options(options) as landmarker:
@@ -432,6 +438,14 @@ async def run_camera(
 
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
+
+                frame_count += 1
+
+                if (
+                    DEBUG_FRAME_PATH
+                    and frame_count % DEBUG_FRAME_INTERVAL == 0
+                ):
+                    cv2.imwrite(DEBUG_FRAME_PATH, frame)
 
                 await asyncio.sleep(0)
 
