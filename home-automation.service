@@ -10,6 +10,7 @@ WorkingDirectory=/home/dylanflaum/home-automation
 ExecStart=/home/dylanflaum/home-automation-venv/bin/python main.py
 Environment=DEBUG_FRAME_PATH=/home/dylanflaum/debug.jpg
 Environment=PYTHONUNBUFFERED=1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 Restart=always
 RestartSec=5
 
