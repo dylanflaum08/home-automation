@@ -332,15 +332,22 @@ async def run_wake_scheduler(
 
         if target_dt is not None and datetime.now() >= target_dt:
             print("WAKE: triggering alarm")
-            await asyncio.gather(desk_lamp.turn_on(), cabinet_lamp.turn_on())
-            await speak("Good morning. Time to wake up.")
 
-            await play_alarm_until(
-                lambda: motion_detector.motion_since(WAKE_MOTION_WINDOW_SECONDS)
-            )
+            try:
+                await asyncio.gather(desk_lamp.turn_on(), cabinet_lamp.turn_on())
+                await speak("Good morning. Time to wake up.")
 
-            clear_wake_sequence()
-            print("WAKE: motion detected, alarm dismissed")
+                await play_alarm_until(
+                    lambda: motion_detector.motion_since(WAKE_MOTION_WINDOW_SECONDS)
+                )
+
+                clear_wake_sequence()
+                print("WAKE: motion detected, alarm dismissed")
+            except Exception as error:
+                # Don't let a playback/hardware hiccup crash the whole
+                # service (and with it, gesture and voice control) - log
+                # it and let the next check retry instead.
+                print(f"WAKE: error during alarm sequence, will retry: {error}")
 
         await asyncio.sleep(WAKE_CHECK_INTERVAL_SECONDS)
 

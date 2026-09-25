@@ -3,7 +3,16 @@ import asyncio
 import numpy as np
 import sounddevice as sd
 
-SAMPLE_RATE = 44100
+
+def _get_output_samplerate() -> int:
+    # PortAudio's ALSA backend talks to the hardware directly rather than
+    # through PipeWire's resampling layer, so a hardcoded rate (e.g. the
+    # usual 44100) can fail outright on devices that only support their
+    # own native rate (this USB speakerphone only does 48000).
+    return int(sd.query_devices(kind="output")["default_samplerate"])
+
+
+SAMPLE_RATE = _get_output_samplerate()
 
 
 def _generate_alarm_pattern() -> np.ndarray:
