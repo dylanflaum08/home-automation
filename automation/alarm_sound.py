@@ -1,18 +1,18 @@
 import asyncio
+import wave
+from pathlib import Path
 
 import numpy as np
-import sounddevice as sd
 
-
-def _get_output_samplerate() -> int:
-    # PortAudio's ALSA backend talks to the hardware directly rather than
-    # through PipeWire's resampling layer, so a hardcoded rate (e.g. the
-    # usual 44100) can fail outright on devices that only support their
-    # own native rate (this USB speakerphone only does 48000).
-    return int(sd.query_devices(kind="output")["default_samplerate"])
-
-
-SAMPLE_RATE = _get_output_samplerate()
+# Playing this through sounddevice/PortAudio directly conflicts with the
+# voice listener's already-open microphone stream when both end up on the
+# same physical device (this USB speakerphone has a built-in mic too) -
+# PortAudio's ALSA backend can't open a second raw stream on that hardware
+# while the first is active. Writing a WAV file and playing it via pw-play
+# goes through PipeWire's normal client mixing instead, the same way
+# espeak-ng (a separate process) already coexists with the open mic stream.
+SAMPLE_RATE = 44100
+ALARM_TONE_PATH = Path(__file__).parent / "alarm_tone.wav"
 
 
 def _generate_alarm_pattern() -> np.ndarray:
@@ -40,24 +40,38 @@ def _generate_alarm_pattern() -> np.ndarray:
     return pattern.astype(np.float32)
 
 
-ALARM_PATTERN = _generate_alarm_pattern()
-PATTERN_DURATION = len(ALARM_PATTERN) / SAMPLE_RATE
+def _write_alarm_tone_wav() -> None:
+    pattern = _generate_alarm_pattern()
+    pcm16 = (np.clip(pattern, -1.0, 1.0) * 32767).astype(np.int16)
+
+    with wave.open(str(ALARM_TONE_PATH), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(SAMPLE_RATE)
+        wav_file.writeframes(pcm16.tobytes())
+
+
+_write_alarm_tone_wav()
 
 
 async def play_alarm_until(should_stop) -> None:
-    """Loops the alarm pattern until should_stop() returns True."""
+    """Loops the alarm tone via pw-play until should_stop() returns True."""
     check_interval = 0.5
 
     while not should_stop():
-        sd.play(ALARM_PATTERN, SAMPLE_RATE)
-        elapsed = 0.0
+        process = await asyncio.create_subprocess_exec(
+            "pw-play",
+            str(ALARM_TONE_PATH),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
 
-        while elapsed < PATTERN_DURATION:
-            if should_stop():
-                sd.stop()
-                return
-
-            await asyncio.sleep(check_interval)
-            elapsed += check_interval
-
-    sd.stop()
+        while True:
+            try:
+                await asyncio.wait_for(process.wait(), timeout=check_interval)
+                break
+            except asyncio.TimeoutError:
+                if should_stop():
+                    process.terminate()
+                    await process.wait()
+                    return

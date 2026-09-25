@@ -1,3 +1,4 @@
 .env
 __pycache__/
 automation/wake_state.json
+automation/alarm_tone.wav
