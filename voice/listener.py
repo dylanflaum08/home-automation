@@ -4,6 +4,8 @@ import queue
 import sounddevice as sd
 import vosk
 
+from voice.wake_phrases import ALL_WAKE_PHRASES
+
 vosk.SetLogLevel(-1)
 
 SAMPLE_RATE = 16000
@@ -13,7 +15,7 @@ BLOCK_SIZE = 8000
 # transcription, since Vosk's grammar mode is far more accurate for a small
 # set of known commands than free dictation. "[unk]" lets it reject speech
 # that doesn't match any of them instead of forcing the closest guess.
-COMMAND_PHRASES = [
+LAMP_COMMAND_PHRASES = [
     "turn on the desk lamp",
     "turn off the desk lamp",
     "turn on the cabinet lamp",
@@ -26,6 +28,8 @@ COMMAND_PHRASES = [
     "lamps off",
     "lights off",
 ]
+
+COMMAND_PHRASES = LAMP_COMMAND_PHRASES + ALL_WAKE_PHRASES
 
 
 class VoiceListener:

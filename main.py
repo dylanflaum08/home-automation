@@ -1,11 +1,19 @@
 import asyncio
 import os
 import time
+from datetime import datetime
 
 import cv2
 import mediapipe as mp
 from mediapipe.tasks.python import vision
 
+from automation.alarm_sound import play_alarm_until
+from automation.wake_sequence import (
+    clear_wake_sequence,
+    compute_target_datetime,
+    load_wake_sequence,
+    save_wake_sequence,
+)
 from devices.kasa_controller import KasaController
 from vision.camera import open_camera
 from vision.gestures import (
@@ -16,7 +24,15 @@ from vision.gestures import (
     detect_hand_command,
     detect_point_direction,
 )
+from vision.motion import MotionDetector
 from voice.listener import VoiceListener
+from voice.tts import speak
+from voice.wake_phrases import (
+    CANCEL_WAKE_PHRASE,
+    QUERY_WAKE_PHRASE,
+    WAKE_PHRASE_MAP,
+    format_wake_time_spec,
+)
 
 
 # --------------------------------------------------
@@ -46,6 +62,9 @@ STABLE_FRAME_REQUIREMENT = 8
 NEUTRAL_FRAME_REQUIREMENT = 8
 GLOBAL_STABLE_FRAME_REQUIREMENT = 15
 DIRECTIONAL_STABLE_FRAME_REQUIREMENT = 8
+
+WAKE_CHECK_INTERVAL_SECONDS = 15
+WAKE_MOTION_WINDOW_SECONDS = 3
 
 
 # --------------------------------------------------
@@ -242,6 +261,42 @@ VOICE_COMMAND_ACTIONS = {
 }
 
 
+async def handle_wake_command(command: str) -> bool:
+    """Handles set/query/cancel wake-sequence commands. Returns True if the
+    command was one of these (so the caller knows not to also check
+    VOICE_COMMAND_ACTIONS)."""
+
+    spec = WAKE_PHRASE_MAP.get(command)
+
+    if spec is not None:
+        target_dt = compute_target_datetime(spec, datetime.now())
+        save_wake_sequence(target_dt)
+        await speak(
+            f"Wake up sequence set for {format_wake_time_spec(spec)}, "
+            f"{target_dt.strftime('%A %I:%M %p')}."
+        )
+        return True
+
+    if command == QUERY_WAKE_PHRASE:
+        target_dt = load_wake_sequence()
+
+        if target_dt is None:
+            await speak("No wake up sequence is set.")
+        else:
+            await speak(
+                f"Wake up sequence set for {target_dt.strftime('%A %I:%M %p')}."
+            )
+
+        return True
+
+    if command == CANCEL_WAKE_PHRASE:
+        clear_wake_sequence()
+        await speak("Wake up sequence cancelled.")
+        return True
+
+    return False
+
+
 async def handle_voice_commands(
     voice_listener: VoiceListener,
     desk_lamp: KasaController,
@@ -251,13 +306,43 @@ async def handle_voice_commands(
         command = voice_listener.get_command_nowait()
 
         if command is not None:
-            action = VOICE_COMMAND_ACTIONS.get(command)
+            print(f"VOICE: {command}")
+            handled = await handle_wake_command(command)
 
-            if action is not None:
-                await action(desk_lamp, cabinet_lamp)
-                print(f"VOICE: {command}")
+            if not handled:
+                action = VOICE_COMMAND_ACTIONS.get(command)
+
+                if action is not None:
+                    await action(desk_lamp, cabinet_lamp)
 
         await asyncio.sleep(0.1)
+
+
+# --------------------------------------------------
+# Wake-up sequence
+# --------------------------------------------------
+
+async def run_wake_scheduler(
+    desk_lamp: KasaController,
+    cabinet_lamp: KasaController,
+    motion_detector: MotionDetector,
+) -> None:
+    while True:
+        target_dt = load_wake_sequence()
+
+        if target_dt is not None and datetime.now() >= target_dt:
+            print("WAKE: triggering alarm")
+            await asyncio.gather(desk_lamp.turn_on(), cabinet_lamp.turn_on())
+            await speak("Good morning. Time to wake up.")
+
+            await play_alarm_until(
+                lambda: motion_detector.motion_since(WAKE_MOTION_WINDOW_SECONDS)
+            )
+
+            clear_wake_sequence()
+            print("WAKE: motion detected, alarm dismissed")
+
+        await asyncio.sleep(WAKE_CHECK_INTERVAL_SECONDS)
 
 
 # --------------------------------------------------
@@ -267,6 +352,7 @@ async def handle_voice_commands(
 async def run_camera(
     desk_lamp: KasaController,
     cabinet_lamp: KasaController,
+    motion_detector: MotionDetector,
 ) -> None:
     options = vision.HandLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(
@@ -301,6 +387,8 @@ async def run_camera(
 
                 if MIRROR_CAMERA:
                     frame = cv2.flip(frame, 1)
+
+                motion_detector.update(frame)
 
                 rgb_frame = cv2.cvtColor(
                     frame,
@@ -546,6 +634,8 @@ async def main() -> None:
         print("Point right + other hand fist = Cabinet Lamp OFF")
         print('Voice: "turn on/off the desk/cabinet lamp", "turn on/off both lamps"')
         print('       "lamps/lights on" = both ON, "kill the lights"/"lamps/lights off" = both OFF')
+        print('       "set wake up sequence for <time> [am/pm] [today/tomorrow]"')
+        print('       "query wake up sequence", "cancel wake up sequence"')
         print()
 
         if SHOW_PREVIEW_WINDOW:
@@ -554,6 +644,7 @@ async def main() -> None:
             print("No display detected, running headless. Press Ctrl+C to quit.")
 
         voice_listener = None
+        motion_detector = MotionDetector()
 
         try:
             voice_listener = VoiceListener(VOICE_MODEL_PATH)
@@ -567,8 +658,16 @@ async def main() -> None:
                 run_camera(
                     desk_lamp=desk_lamp,
                     cabinet_lamp=cabinet_lamp,
+                    motion_detector=motion_detector,
                 )
-            )
+            ),
+            asyncio.ensure_future(
+                run_wake_scheduler(
+                    desk_lamp=desk_lamp,
+                    cabinet_lamp=cabinet_lamp,
+                    motion_detector=motion_detector,
+                )
+            ),
         ]
 
         if voice_listener is not None:
