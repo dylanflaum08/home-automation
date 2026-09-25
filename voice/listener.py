@@ -20,6 +20,10 @@ COMMAND_PHRASES = [
     "turn off the cabinet lamp",
     "turn on both lamps",
     "turn off both lamps",
+    "lumos",
+    "lamps on",
+    "kill the lights",
+    "lamps off",
 ]
 
 

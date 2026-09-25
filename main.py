@@ -219,17 +219,25 @@ async def execute_global_command(
 # Voice commands
 # --------------------------------------------------
 
+def _turn_both_on(desk, cabinet):
+    return asyncio.gather(desk.turn_on(), cabinet.turn_on())
+
+
+def _turn_both_off(desk, cabinet):
+    return asyncio.gather(desk.turn_off(), cabinet.turn_off())
+
+
 VOICE_COMMAND_ACTIONS = {
     "turn on the desk lamp": lambda desk, cabinet: desk.turn_on(),
     "turn off the desk lamp": lambda desk, cabinet: desk.turn_off(),
     "turn on the cabinet lamp": lambda desk, cabinet: cabinet.turn_on(),
     "turn off the cabinet lamp": lambda desk, cabinet: cabinet.turn_off(),
-    "turn on both lamps": lambda desk, cabinet: asyncio.gather(
-        desk.turn_on(), cabinet.turn_on()
-    ),
-    "turn off both lamps": lambda desk, cabinet: asyncio.gather(
-        desk.turn_off(), cabinet.turn_off()
-    ),
+    "turn on both lamps": _turn_both_on,
+    "lumos": _turn_both_on,
+    "lamps on": _turn_both_on,
+    "turn off both lamps": _turn_both_off,
+    "kill the lights": _turn_both_off,
+    "lamps off": _turn_both_off,
 }
 
 
@@ -536,6 +544,7 @@ async def main() -> None:
         print("Point right + other hand open = Cabinet Lamp ON")
         print("Point right + other hand fist = Cabinet Lamp OFF")
         print('Voice: "turn on/off the desk/cabinet lamp", "turn on/off both lamps"')
+        print('       "lumos"/"lamps on" = both ON, "kill the lights"/"lamps off" = both OFF')
         print()
 
         if SHOW_PREVIEW_WINDOW:
