@@ -16,6 +16,7 @@ from vision.gestures import (
     detect_hand_command,
     detect_point_direction,
 )
+from voice.listener import VoiceListener
 
 
 # --------------------------------------------------
@@ -23,6 +24,7 @@ from vision.gestures import (
 # --------------------------------------------------
 
 MODEL_PATH = "hand_landmarker.task"
+VOICE_MODEL_PATH = "voice/model/vosk-model-small-en-us-0.15"
 
 DESK_LAMP_IP = "192.168.4.21"
 CABINET_LAMP_IP = "192.168.4.27"
@@ -211,6 +213,42 @@ async def execute_global_command(
         return "BOTH LAMPS ON"
 
     return "READY"
+
+
+# --------------------------------------------------
+# Voice commands
+# --------------------------------------------------
+
+VOICE_COMMAND_ACTIONS = {
+    "turn on the desk lamp": lambda desk, cabinet: desk.turn_on(),
+    "turn off the desk lamp": lambda desk, cabinet: desk.turn_off(),
+    "turn on the cabinet lamp": lambda desk, cabinet: cabinet.turn_on(),
+    "turn off the cabinet lamp": lambda desk, cabinet: cabinet.turn_off(),
+    "turn on both lamps": lambda desk, cabinet: asyncio.gather(
+        desk.turn_on(), cabinet.turn_on()
+    ),
+    "turn off both lamps": lambda desk, cabinet: asyncio.gather(
+        desk.turn_off(), cabinet.turn_off()
+    ),
+}
+
+
+async def handle_voice_commands(
+    voice_listener: VoiceListener,
+    desk_lamp: KasaController,
+    cabinet_lamp: KasaController,
+) -> None:
+    while True:
+        command = voice_listener.get_command_nowait()
+
+        if command is not None:
+            action = VOICE_COMMAND_ACTIONS.get(command)
+
+            if action is not None:
+                await action(desk_lamp, cabinet_lamp)
+                print(f"VOICE: {command}")
+
+        await asyncio.sleep(0.1)
 
 
 # --------------------------------------------------
@@ -497,6 +535,7 @@ async def main() -> None:
         print("Point left + other hand fist  = Desk Lamp OFF")
         print("Point right + other hand open = Cabinet Lamp ON")
         print("Point right + other hand fist = Cabinet Lamp OFF")
+        print('Voice: "turn on/off the desk/cabinet lamp", "turn on/off both lamps"')
         print()
 
         if SHOW_PREVIEW_WINDOW:
@@ -504,10 +543,57 @@ async def main() -> None:
         else:
             print("No display detected, running headless. Press Ctrl+C to quit.")
 
-        await run_camera(
-            desk_lamp=desk_lamp,
-            cabinet_lamp=cabinet_lamp,
-        )
+        voice_listener = None
+
+        try:
+            voice_listener = VoiceListener(VOICE_MODEL_PATH)
+            voice_listener.start()
+            print("Voice control enabled.")
+        except Exception as error:
+            print(f"Voice control unavailable ({error}); continuing with gestures only.")
+
+        tasks = [
+            asyncio.ensure_future(
+                run_camera(
+                    desk_lamp=desk_lamp,
+                    cabinet_lamp=cabinet_lamp,
+                )
+            )
+        ]
+
+        if voice_listener is not None:
+            tasks.append(
+                asyncio.ensure_future(
+                    handle_voice_commands(
+                        voice_listener=voice_listener,
+                        desk_lamp=desk_lamp,
+                        cabinet_lamp=cabinet_lamp,
+                    )
+                )
+            )
+
+        try:
+            # handle_voice_commands runs forever on its own, so wait for
+            # run_camera to finish (quit key, Ctrl+C, camera error) and
+            # then cancel whatever's left instead of hanging forever.
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in pending:
+                task.cancel()
+
+            for task in pending:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            for task in done:
+                task.result()
+        finally:
+            if voice_listener is not None:
+                voice_listener.stop()
 
     finally:
         await desk_lamp.disconnect()

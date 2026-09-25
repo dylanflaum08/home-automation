@@ -1,0 +1,2 @@
+voice/model/** -text -diff
+hand_landmarker.task -text -diff
