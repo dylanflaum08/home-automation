@@ -233,7 +233,6 @@ VOICE_COMMAND_ACTIONS = {
     "turn on the cabinet lamp": lambda desk, cabinet: cabinet.turn_on(),
     "turn off the cabinet lamp": lambda desk, cabinet: cabinet.turn_off(),
     "turn on both lamps": _turn_both_on,
-    "lumos": _turn_both_on,
     "lamps on": _turn_both_on,
     "turn off both lamps": _turn_both_off,
     "kill the lights": _turn_both_off,
@@ -544,7 +543,7 @@ async def main() -> None:
         print("Point right + other hand open = Cabinet Lamp ON")
         print("Point right + other hand fist = Cabinet Lamp OFF")
         print('Voice: "turn on/off the desk/cabinet lamp", "turn on/off both lamps"')
-        print('       "lumos"/"lamps on" = both ON, "kill the lights"/"lamps off" = both OFF')
+        print('       "lamps on" = both ON, "kill the lights"/"lamps off" = both OFF')
         print()
 
         if SHOW_PREVIEW_WINDOW:
