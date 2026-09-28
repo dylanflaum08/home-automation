@@ -82,10 +82,19 @@ def detect_point_direction(landmarks) -> PointDirection:
     finger_dx = index_tip.x - index_mcp.x
     finger_dy = index_tip.y - index_mcp.y
 
-    # Require meaningful sideways extension.
-    minimum_horizontal_extension = 0.07
+    # Require meaningful sideways extension, relative to the finger's own
+    # length rather than a fixed image-coordinate distance. A hand farther
+    # from the camera occupies less of the frame, so its dx/dy are smaller
+    # in absolute terms even for a fully sideways point - a fixed threshold
+    # here made pointing fail whenever the hand wasn't close to the camera.
+    finger_length = distance_between_points(index_tip, index_mcp)
 
-    if abs(finger_dx) < minimum_horizontal_extension:
+    if finger_length == 0:
+        return PointDirection.NONE
+
+    minimum_horizontal_fraction = 0.35
+
+    if abs(finger_dx) < finger_length * minimum_horizontal_fraction:
         return PointDirection.NONE
 
     # Allow the finger to slope substantially upward or downward.
