@@ -35,9 +35,3 @@ class MotionDetector:
 
         self._previous_frame = gray
         return motion_detected
-
-    def motion_since(self, seconds: float) -> bool:
-        if self.last_motion_time is None:
-            return False
-
-        return (time.monotonic() - self.last_motion_time) < seconds

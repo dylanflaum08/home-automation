@@ -64,7 +64,6 @@ GLOBAL_STABLE_FRAME_REQUIREMENT = 15
 DIRECTIONAL_STABLE_FRAME_REQUIREMENT = 8
 
 WAKE_CHECK_INTERVAL_SECONDS = 15
-WAKE_MOTION_WINDOW_SECONDS = 3
 
 
 # --------------------------------------------------
@@ -337,8 +336,19 @@ async def run_wake_scheduler(
                 await asyncio.gather(desk_lamp.turn_on(), cabinet_lamp.turn_on())
                 await speak("Good morning. Time to wake up.")
 
+                # Only fresh motion after the alarm actually starts ringing
+                # should dismiss it. Using a trailing "motion in the last N
+                # seconds" window instead would count motion from right
+                # before the alarm (e.g. you were already up, or just
+                # finished saying "good morning" nearby), dismissing it
+                # before it ever plays a single loop.
+                alarm_start = time.monotonic()
+
                 await play_alarm_until(
-                    lambda: motion_detector.motion_since(WAKE_MOTION_WINDOW_SECONDS)
+                    lambda: (
+                        motion_detector.last_motion_time is not None
+                        and motion_detector.last_motion_time > alarm_start
+                    )
                 )
 
                 clear_wake_sequence()
