@@ -50,6 +50,29 @@ def index_finger_is_straight(landmarks) -> bool:
     return tip_distance > pip_distance * 1.8
 
 
+def finger_is_curled(landmarks, mcp: int, pip: int, tip: int) -> bool:
+    """
+    Orientation-independent check for whether a finger is curled toward
+    the palm, using the same distance-from-knuckle idea as
+    index_finger_is_straight but inverted.
+
+    finger_is_extended's tip.y < pip.y check only requires the tip to not
+    be pointing upward - a relaxed, half-open resting hand (e.g. hovering
+    over a keyboard) satisfies that just as easily as a real fist, which
+    let ordinary hand positions get misread as the "other fingers folded"
+    half of a pointing gesture. Requiring the tip to actually be close to
+    the knuckle demands real curling, not just "not upward."
+    """
+    mcp_point = landmarks[mcp]
+    pip_point = landmarks[pip]
+    tip_point = landmarks[tip]
+
+    tip_distance = distance_between_points(tip_point, mcp_point)
+    pip_distance = distance_between_points(pip_point, mcp_point)
+
+    return tip_distance < pip_distance * 1.3
+
+
 def detect_point_direction(landmarks) -> PointDirection:
     """
     Detect a generally leftward or rightward pointing gesture.
@@ -65,9 +88,9 @@ def detect_point_direction(landmarks) -> PointDirection:
     index_tip = landmarks[8]
 
     index_extended = index_finger_is_straight(landmarks)
-    middle_folded = not finger_is_extended(landmarks, 12, 10)
-    ring_folded = not finger_is_extended(landmarks, 16, 14)
-    pinky_folded = not finger_is_extended(landmarks, 20, 18)
+    middle_folded = finger_is_curled(landmarks, 9, 10, 12)
+    ring_folded = finger_is_curled(landmarks, 13, 14, 16)
+    pinky_folded = finger_is_curled(landmarks, 17, 18, 20)
 
     if not (
         index_extended
