@@ -31,6 +31,25 @@ def distance_between_points(point_a, point_b) -> float:
     )
 
 
+def index_finger_is_straight(landmarks) -> bool:
+    """
+    Orientation-independent check for whether the index finger is
+    extended, using distance from the knuckle rather than tip.y < pip.y.
+
+    A pointing finger can aim in any direction - left, right, level, or
+    down - not just upward, so a vertical-only comparison misses level
+    or downward points entirely.
+    """
+    index_mcp = landmarks[5]
+    index_pip = landmarks[6]
+    index_tip = landmarks[8]
+
+    tip_distance = distance_between_points(index_tip, index_mcp)
+    pip_distance = distance_between_points(index_pip, index_mcp)
+
+    return tip_distance > pip_distance * 1.8
+
+
 def detect_point_direction(landmarks) -> PointDirection:
     """
     Detect a generally leftward or rightward pointing gesture.
@@ -45,7 +64,7 @@ def detect_point_direction(landmarks) -> PointDirection:
     index_pip = landmarks[6]
     index_tip = landmarks[8]
 
-    index_extended = finger_is_extended(landmarks, 8, 6)
+    index_extended = index_finger_is_straight(landmarks)
     middle_folded = not finger_is_extended(landmarks, 12, 10)
     ring_folded = not finger_is_extended(landmarks, 16, 14)
     pinky_folded = not finger_is_extended(landmarks, 20, 18)
