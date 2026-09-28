@@ -50,27 +50,37 @@ def index_finger_is_straight(landmarks) -> bool:
     return tip_distance > pip_distance * 1.8
 
 
-def finger_is_curled(landmarks, mcp: int, pip: int, tip: int) -> bool:
+def finger_is_curled(landmarks, mcp: int, tip: int) -> bool:
     """
     Orientation-independent check for whether a finger is curled toward
-    the palm, using the same distance-from-knuckle idea as
-    index_finger_is_straight but inverted.
+    the palm, using fingertip distance from the wrist rather than
+    tip.y < pip.y.
 
     finger_is_extended's tip.y < pip.y check only requires the tip to not
     be pointing upward - a relaxed, half-open resting hand (e.g. hovering
     over a keyboard) satisfies that just as easily as a real fist, which
     let ordinary hand positions get misread as the "other fingers folded"
-    half of a pointing gesture. Requiring the tip to actually be close to
-    the knuckle demands real curling, not just "not upward."
+    half of a pointing gesture.
+
+    An earlier version compared the tip's distance from the MCP knuckle
+    instead of the wrist, but that measurement proved noisy in practice
+    (a live diagnostic saw it swing from 1.4 to 8+ for the same held
+    pose) since a bent finger's tip doesn't necessarily end up close to
+    its own knuckle depending on bend angle. Distance from the wrist is
+    far more stable: curling pulls the tip back toward the palm and
+    wrist regardless of exact bend angle, while an extended finger
+    reaches well past the knuckle's own distance from the wrist. Live
+    testing showed a clean gap here (curled ~0.85, extended ~1.85, no
+    overlap), unlike the knuckle-based measurement.
     """
+    wrist = landmarks[0]
     mcp_point = landmarks[mcp]
-    pip_point = landmarks[pip]
     tip_point = landmarks[tip]
 
-    tip_distance = distance_between_points(tip_point, mcp_point)
-    pip_distance = distance_between_points(pip_point, mcp_point)
+    tip_to_wrist = distance_between_points(tip_point, wrist)
+    mcp_to_wrist = distance_between_points(mcp_point, wrist)
 
-    return tip_distance < pip_distance * 1.3
+    return tip_to_wrist < mcp_to_wrist * 1.3
 
 
 def detect_point_direction(landmarks) -> PointDirection:
@@ -88,9 +98,9 @@ def detect_point_direction(landmarks) -> PointDirection:
     index_tip = landmarks[8]
 
     index_extended = index_finger_is_straight(landmarks)
-    middle_folded = finger_is_curled(landmarks, 9, 10, 12)
-    ring_folded = finger_is_curled(landmarks, 13, 14, 16)
-    pinky_folded = finger_is_curled(landmarks, 17, 18, 20)
+    middle_folded = finger_is_curled(landmarks, 9, 12)
+    ring_folded = finger_is_curled(landmarks, 13, 16)
+    pinky_folded = finger_is_curled(landmarks, 17, 20)
 
     if not (
         index_extended
